@@ -1,0 +1,64 @@
+
+<h1>Plotting COVID-19</h1>
+
+<div class="page">
+    <div class="chart">
+        <canvas #chart ></canvas>
+    </div>
+    <div class="settings">
+        <h2>Settings</h2>
+        <mat-form-field>
+            <mat-label>Countries</mat-label>
+            <mat-select [(ngModel)]="state.selectedCountries" multiple (selectionChange)="replot()">
+            <mat-option *ngFor="let country of countryOptions" [value]="country">{{country}}</mat-option>
+            </mat-select>
+        </mat-form-field>
+        <p>Tip: Hide countries by clicking on their color legend</p>
+
+        <mat-form-field>
+            <mat-label>Graph type</mat-label>
+            <mat-select [(ngModel)]="state.graphType" (selectionChange)="replot()">
+            <mat-option *ngFor="let option of graphTypeOptions" [value]="option">{{option}}</mat-option>
+            </mat-select>
+        </mat-form-field>
+        
+        <div class="row">
+            <mat-checkbox [(ngModel)]="state.log" (ngModelChange)="replot()" [disabled]="state.graphType === graphTypes.CasesGrowth || state.graphType === graphTypes.DeathGrowth">Logarithmic</mat-checkbox>
+        </div>
+
+        <div class="row">
+            <mat-checkbox [(ngModel)]="state.average" (ngModelChange)="replot()">Moving average</mat-checkbox>
+            <div class="grower"></div>
+            <mat-form-field class="inline">
+                <mat-label>Days</mat-label>
+                <input matInput [(ngModel)]="samples" (ngModelChange)="replot()" type="number" min="1" max="28">
+            </mat-form-field>
+        </div>
+
+        <div class="row">
+            <mat-checkbox [(ngModel)]="state.normalize" (ngModelChange)="normalizeChange()">Normalize, per </mat-checkbox>
+            
+            <div class="grower"></div>
+            <mat-form-field class="inline">
+                <mat-label>People</mat-label>
+                <input matInput [(ngModel)]="state.normalizePopulation" (ngModelChange)="replot()" type="number" min="1" max="10000000000">
+            </mat-form-field>
+        </div>
+
+        <div class="row">
+            <mat-checkbox [(ngModel)]="state.shift" (ngModelChange)="replot()">Start each curve at</mat-checkbox>
+            
+            <div class="grower"></div>
+            <mat-form-field class="inline">
+                <mat-label>Value</mat-label>
+                <input matInput [(ngModel)]="state.shiftThreshold" (ngModelChange)="replot()" type="number" min="1" max="10000">
+            </mat-form-field>
+        </div>
+
+        <h2>Sources</h2>
+        <p><a href="https://pomber.github.io/covid19/timeseries.json">COVID cases and deaths</a> (updated 4/12/2020)</p>
+        <p><a href="https://raw.githubusercontent.com/samayo/country-json/master/src/country-by-population.json">Country population</a></p>
+        <p><a href="https://raw.githubusercontent.com/samayo/country-json/master/src/country-by-abbreviation.json">Country code map for population</a></p>
+        <p><a href="https://raw.githubusercontent.com/pomber/covid19/master/docs/countries.json">Country code map for COVID cases</a></p>
+    </div>
+</div>

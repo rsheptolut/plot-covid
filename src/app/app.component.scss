@@ -1,0 +1,37 @@
+h1 {
+    text-align: center;
+    padding: 1rem;
+}
+
+.page {
+    display: flex;
+    flex-direction: row;
+}
+
+.settings {
+    margin: 2rem;
+    display: flex;
+    max-width: 30rem;
+    flex-direction: column;
+}
+
+.row {
+    display: flex;
+    flex-direction: row;
+    align-items: baseline;
+}
+
+.grower {
+    flex-grow: 999;
+}
+
+.chart {
+    position: relative;
+    height: 90vh;
+    width: 100%;
+    overflow: hidden;
+}
+
+.inline {
+    margin: 0 1rem;
+}
