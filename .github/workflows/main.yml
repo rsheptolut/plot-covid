@@ -20,7 +20,7 @@ jobs:
           repository: pomber/covid19
           path: pomber
       - name: Copy timeseries from pomber
-        run: /cp pomber/docs/timeseries.json main/src/assets/timeseries.json
+        run: \cp pomber/docs/timeseries.json main/src/assets/timeseries.json
       - name: Commit files
         run: |
           cd main
