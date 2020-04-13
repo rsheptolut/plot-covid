@@ -10,11 +10,17 @@ jobs:
   extract_job:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout data repo
+      - name: Checkout this repo
+        uses: actions/checkout@v2
+        with:
+          path: main
+      - name: Checkout pomber/covid19 repo
         uses: actions/checkout@v2
         with:
           repository: pomber/covid19
-          path: main
+          path: pomber
+      - name: Copy timeseries from pomber
+        run: /cp pomber/docs/timeseries.json main/src/assets/timeseries.json
       - name: Commit files
         run: |
           cd main
