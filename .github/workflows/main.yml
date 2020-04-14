@@ -41,7 +41,7 @@ jobs:
         run: |
           cd main
           npm ci
-          npm run build:ci
+          npm run build
       
       - name: Commit files
         run: |
