@@ -3,7 +3,7 @@
   "version": 1,
   "newProjectRoot": "projects",
   "projects": {
-    "grapho": {
+    "plot-covid": {
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
@@ -68,18 +68,18 @@
         "serve": {
           "builder": "@angular-devkit/build-angular:dev-server",
           "options": {
-            "browserTarget": "grapho:build"
+            "browserTarget": "plot-covid:build"
           },
           "configurations": {
             "production": {
-              "browserTarget": "grapho:build:production"
+              "browserTarget": "plot-covid:build:production"
             }
           }
         },
         "extract-i18n": {
           "builder": "@angular-devkit/build-angular:extract-i18n",
           "options": {
-            "browserTarget": "grapho:build"
+            "browserTarget": "plot-covid:build"
           }
         },
         "test": {
@@ -117,18 +117,18 @@
           "builder": "@angular-devkit/build-angular:protractor",
           "options": {
             "protractorConfig": "e2e/protractor.conf.js",
-            "devServerTarget": "grapho:serve"
+            "devServerTarget": "plot-covid:serve"
           },
           "configurations": {
             "production": {
-              "devServerTarget": "grapho:serve:production"
+              "devServerTarget": "plot-covid:serve:production"
             }
           }
         }
       }
     }
   },
-  "defaultProject": "grapho",
+  "defaultProject": "plot-covid",
   "cli": {
     "analytics": false
   }
