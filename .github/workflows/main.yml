@@ -8,6 +8,7 @@ on:
   push:
     paths-ignore:
     - 'docs/**'
+    - 'src/assets/timeseries.json'
   # Run on each issue (easy to trigger the workflow manually this way)
   issues:
     types: [opened]
