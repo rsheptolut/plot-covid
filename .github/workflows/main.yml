@@ -52,7 +52,7 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add .
-          git diff-index --quiet HEAD || git commit -m "Update json" -a
+          git diff-index --quiet HEAD || git commit -m "Update and build" -a
       
       - name: Push changes to repo
         uses: ad-m/github-push-action@master
