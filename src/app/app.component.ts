@@ -24,6 +24,7 @@ export class AppComponent implements OnInit {
   public currentChart: Chart;
   public dateLabels: string[];
   public pop: { [key: string]: number; };
+  public mainUpdatedStr: string;
   private numberScale = [ 0, 1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000 ];
 
   constructor(private storageService: StorageService) {
@@ -51,7 +52,13 @@ export class AppComponent implements OnInit {
   }
 
   public async ngOnInit(): Promise<void> {
-    this.data = await (await fetch('/assets/timeseries.json')).json();
+    const response = await fetch(document.baseURI + '/assets/timeseries.json');
+    const date = response.headers.get('Date');
+    if (date) {
+      this.mainUpdatedStr = ' (updated ' + new Date(date).toLocaleDateString() + ')';
+    }
+    response.headers.get('Date')
+    this.data = await response.json();
     this.countryOptions = Object.keys(this.data).sort((a, b) => a.localeCompare(b));
     this.dateLabels = this.data[this.state.selectedCountries[0]].map(p => p.date.replace('2020-', ''));
     await this.replot();
@@ -120,9 +127,9 @@ export class AppComponent implements OnInit {
       return;
     }
 
-    const countrySNameToPop = await (await fetch('/assets/country-by-population.json')).json();
-    const countrySNameToAbbr = await (await fetch('/assets/country-by-abbreviation.json')).json();
-    const countryPNameToAbbr = await (await fetch('/assets/countries.json')).json();
+    const countrySNameToPop = await (await fetch(document.baseURI + '/assets/country-by-population.json')).json();
+    const countrySNameToAbbr = await (await fetch(document.baseURI + '/assets/country-by-abbreviation.json')).json();
+    const countryPNameToAbbr = await (await fetch(document.baseURI + '/assets/countries.json')).json();
     const snameToPopDict = Helpers.toDictionary(countrySNameToPop, c => c['country'] as string, c => parseInt(c['population'], 10));
     const abbrToSnameDict = Helpers.toDictionary(countrySNameToAbbr, c => c['abbreviation'] as string, c => c['country'] as string);
     this.pop = Helpers.toDictionary(Object.keys(countryPNameToAbbr), c => c, c => snameToPopDict[abbrToSnameDict[countryPNameToAbbr[c]['code']]]);
