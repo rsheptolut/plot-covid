@@ -41,7 +41,8 @@ jobs:
       
       - name: Commit all changes to repo
         run: |
-          \cp main/dist/** pages/
+          \rm -rfv /pages/
+          \cp -r main/dist/** pages/
           cd pages
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
