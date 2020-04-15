@@ -1,15 +1,10 @@
-name: Update data and build
+name: Build app
 
 on:
-  # Run regularly
-  schedule:
-    - cron: "30 0,2,12 * * *"
   # Run on each commit apart from docs updates
   push:
     paths-ignore:
-    - 'docs/**'
-    - 'src/assets/timeseries.json'
-  # Run on each issue (easy to trigger the workflow manually this way)
+    - 'abcdefg'
   issues:
     types: [opened]
 
@@ -21,26 +16,24 @@ jobs:
         node-version: [12.x]
 
     steps:
-      - name: Checkout this repo
+      - name: Checkout master
         uses: actions/checkout@v2
         with:
           path: main
-      
-      - name: Checkout pomber/covid19 repo
+          ref: master
+
+      - name: Checkout gh-pages
         uses: actions/checkout@v2
         with:
-          repository: pomber/covid19
-          path: pomber
-      
-      - name: Copy timeseries.json from pomber
-        run: \cp pomber/docs/timeseries.json main/src/assets/timeseries.json
+          path: pages
+          ref: gh-pages
       
       - name: Set up Node.js
         uses: actions/setup-node@v1
         with:
           node-version: ${{ matrix.node-version }}
       
-      - name: Build app to ./docs (intended to be served by Github pages)
+      - name: Build app
         run: |
           cd main
           npm ci
@@ -48,7 +41,8 @@ jobs:
       
       - name: Commit all changes to repo
         run: |
-          cd main
+          \cp main/dist/** pages/
+          cd pages
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add .
@@ -58,4 +52,5 @@ jobs:
         uses: ad-m/github-push-action@master
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          directory: main
+          directory: pages
+          branch: gh-pages

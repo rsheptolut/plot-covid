@@ -1,13 +1,15 @@
-import { Component, ViewChild, ElementRef, OnInit } from '@angular/core';
+import { Component, ViewChild, ElementRef, OnInit, ChangeDetectorRef } from '@angular/core';
 import Chart from 'chart.js';
 import { DataRow } from './data-row';
 import { State } from './state';
-import { StorageService } from './storage.service';
 import hash from 'object-hash';
 import { niceColors } from './colors';
-import { GraphType } from './graph-type';
+import { ChartType } from './graph-type';
 import { Helpers } from './helpers';
 import { pipe } from 'rxjs';
+import { MediaMatcher } from '@angular/cdk/layout';
+import { Params, Router, ActivatedRoute } from '@angular/router';
+import { UrlState } from './url-state';
 
 @Component({
   selector: 'app-root',
@@ -15,22 +17,31 @@ import { pipe } from 'rxjs';
   styleUrls: ['./app.component.scss']
 })
 export class AppComponent implements OnInit {
+  private mobileQueryListener: () => void;
   @ViewChild('chart', { static: true }) chart: ElementRef;
   private data: { [ key: string ]: DataRow[] };
   public countryOptions: string[];
-  public graphTypes = GraphType;
-  public graphTypeOptions = Object.values(GraphType);
+  public chartTypes = ChartType;
+  public chartTypeOptions = Object.values(ChartType);
   public state: State;
   public currentChart: Chart;
-  public dateLabels: string[];
   public pop: { [key: string]: number; };
   public mainUpdatedStr: string;
   private numberScale = [ 0, 1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000 ];
+  mobileQuery: MediaQueryList;
+  private startDate: Date;
+  private endDate: Date;
+  public colors: { [ country: string ]: string } = {};
 
-  constructor(private storageService: StorageService) {
-    this.state = this.storageService.get('state') as State || new State();
-    this.storageService.beforeSave.subscribe(() => this.saveUi())
-    this.storageService.onSave.subscribe(() => this.storageService.set('state', this.state));
+  constructor(
+    changeDetectorRef: ChangeDetectorRef,
+    media: MediaMatcher,
+    private router: Router,
+    private activatedRoute: ActivatedRoute,
+  ) {
+    this.mobileQuery = media.matchMedia('(max-width: 600px)');
+    this.mobileQueryListener = () => changeDetectorRef.detectChanges();
+    this.mobileQuery.addListener(this.mobileQueryListener);
   }
 
   get samples(): string {
@@ -41,27 +52,58 @@ export class AppComponent implements OnInit {
     this.state.avgSamples = parseInt(value, 10);
   }
 
-  private saveUi(): void {
-    this.updateHiddenCountries();
+  public async ngOnInit(): Promise<void> {
+    const response = await fetch('https://pomber.github.io/covid19/timeseries.json');
+    const date = response.headers.get('last-modified') || response.headers.get('Date');
+    if (date) {
+      this.mainUpdatedStr = ' (updated ' + new Date(date).toLocaleDateString() + ')';
+    }
+    this.data = await response.json();
+    this.countryOptions = Object.keys(this.data).sort((a, b) => a.localeCompare(b));
+
+    this.activatedRoute.queryParams.subscribe(async p => {
+      this.state = UrlState.toState(p as UrlState);
+      await this.settingChange();
+    });
   }
 
   private updateHiddenCountries(): void {
     if (this.currentChart) {
-      this.state.hiddenCountries = this.currentChart.data.datasets.filter((d, i) => this.currentChart.getDatasetMeta(i).hidden).map(d => d.label);
+      setTimeout(() => {
+        const newHiddenCountries = this.currentChart.data.datasets.filter((d, i) => this.currentChart.getDatasetMeta(i).hidden).map(d => d.label);
+        if (newHiddenCountries.length !== this.state.hiddenCountries.length || this.state.hiddenCountries.some((h, i) => h !== newHiddenCountries[i])) {
+          this.state.hiddenCountries = newHiddenCountries;
+          this.settingChange();
+        }
+      });
     }
   }
 
-  public async ngOnInit(): Promise<void> {
-    const response = await fetch(document.baseURI + '/assets/timeseries.json');
-    const date = response.headers.get('Date');
-    if (date) {
-      this.mainUpdatedStr = ' (updated ' + new Date(date).toLocaleDateString() + ')';
+  public getTitle(): string {
+    if (!this.state) {
+      return;
     }
-    response.headers.get('Date')
-    this.data = await response.json();
-    this.countryOptions = Object.keys(this.data).sort((a, b) => a.localeCompare(b));
-    this.dateLabels = this.data[this.state.selectedCountries[0]].map(p => p.date.replace('2020-', ''));
-    await this.replot();
+
+    const arr = [ this.state.chartType ];
+    if (this.state.log) {
+      arr.push('log scale');
+    }
+
+    let per = '';
+    if (this.state.normalize && this.state.normalizePopulation > 100 && this.state.normalizePopulation < 10000000000) {
+      per = 'per ' + this.abbrNumber(Math.pow(10, Math.log10(this.state.normalizePopulation)));
+      arr.push(per);
+    }
+
+    if (this.state.average && this.state.avgSamples > 1) {
+      arr.push('moving avg over ' + this.state.avgSamples + ' days');
+    }
+
+    if (this.state.shift && this.state.shiftThreshold > 0) {
+      arr.push('starting at ' + this.state.shiftThreshold + ' cases ' + per);
+    }
+
+    return arr.join(', ') + ' (click to change settings)';
   }
 
   public async normalizeChange(): Promise<void> {
@@ -74,11 +116,25 @@ export class AppComponent implements OnInit {
         this.state.shiftThreshold *= Math.min(1000, Math.round(this.state.normalizePopulation / 10000));
       }
     }
-    await this.replot();
+
+    await this.settingChange();
+  }
+
+  public async settingChange(): Promise<void> {
+    const queryParams = UrlState.fromState(this.state);
+
+    this.router.navigate(
+      [],
+      {
+        relativeTo: this.activatedRoute,
+        queryParams,
+      });
+
+    this.replot();
   }
 
   public async replot(): Promise<void> {
-    if (!this.state.selectedCountries.length || !this.state.graphType) {
+    if (!this.state.selectedCountries.length || !this.state.chartType) {
       return;
     }
 
@@ -87,27 +143,30 @@ export class AppComponent implements OnInit {
 
     this.state.avgSamples = Math.max(1, Math.min(28, this.state.avgSamples));
 
+    this.startDate = this.arrayMin(this.state.selectedCountries.map(c => new Date(this.data[c][0].date)));
+    this.endDate = this.arrayMax(this.state.selectedCountries.map(c => new Date(this.data[c][this.data[c].length - 1].date)));
+
     if (this.state.normalize) {
       await this.initPopulation();
     }
 
-    switch (this.state.graphType) {
-      case GraphType.TotalCases:
+    switch (this.state.chartType) {
+      case ChartType.TotalCases:
         this.plotTotal('confirmed');
         break;
-      case GraphType.NewCases:
+      case ChartType.NewCases:
         this.plotNew('confirmed');
         break;
-      case GraphType.CasesGrowth:
+      case ChartType.CasesGrowth:
         this.plotGrowth('confirmed');
         break;
-      case GraphType.TotalDeaths:
+      case ChartType.TotalDeaths:
         this.plotTotal('deaths');
         break;
-      case GraphType.NewDeaths:
+      case ChartType.NewDeaths:
         this.plotNew('deaths');
         break;
-      case GraphType.DeathGrowth:
+      case ChartType.DeathGrowth:
         this.plotGrowth('deaths');
         break;
     }
@@ -127,9 +186,12 @@ export class AppComponent implements OnInit {
       return;
     }
 
-    const countrySNameToPop = await (await fetch(document.baseURI + '/assets/country-by-population.json')).json();
-    const countrySNameToAbbr = await (await fetch(document.baseURI + '/assets/country-by-abbreviation.json')).json();
-    const countryPNameToAbbr = await (await fetch(document.baseURI + '/assets/countries.json')).json();
+    const req1 = fetch(document.baseURI + '/assets/country-by-population.json');
+    const req2 = fetch(document.baseURI + '/assets/country-by-abbreviation.json');
+    const req3 = fetch(document.baseURI + '/assets/countries.json');
+    const countrySNameToPop = await (await req1).json();
+    const countrySNameToAbbr = await (await req2).json();
+    const countryPNameToAbbr = await (await req3).json();
     const snameToPopDict = Helpers.toDictionary(countrySNameToPop, c => c['country'] as string, c => parseInt(c['population'], 10));
     const abbrToSnameDict = Helpers.toDictionary(countrySNameToAbbr, c => c['abbreviation'] as string, c => c['country'] as string);
     this.pop = Helpers.toDictionary(Object.keys(countryPNameToAbbr), c => c, c => snameToPopDict[abbrToSnameDict[countryPNameToAbbr[c]['code']]]);
@@ -138,16 +200,19 @@ export class AppComponent implements OnInit {
   private plotTotal(prop: string): void {
     const datasets = this.state.selectedCountries.map(c => {
       const getData = pipe(
-        () => this.data[c].map(p => p[prop]),
+        () => this.data[c].filter(p => new Date(p.date) >= this.startDate).map(p => p[prop]),
         d => this.arrayMul(d, this.state.normalize ? this.state.normalizePopulation / this.pop[c] : 1),
         d => this.arrayDifference(d),
         d => this.arrayMovingAverage(d, this.state.average ? this.state.avgSamples : 1),
         d => this.state.shift ? d.slice(d.findIndex(n => n >= this.state.shiftThreshold)) : d,
         d => this.arrayAbsolute(d),
+        d => this.arrayRound(d),
       );
 
       return this.createDataset(c, getData(null));
     });
+
+    const datasetDayOffsets = datasets.map((d, i) => this.data[this.state.selectedCountries[i]].length - d.data.length);
 
     const labels = this.getLabels(datasets);
 
@@ -161,6 +226,13 @@ export class AppComponent implements OnInit {
         animation: {
           duration: 0,
         },
+        onClick: () => this.updateHiddenCountries(),
+        tooltips: {
+          callbacks: {
+            [this.state.shift ? 'title' : 'titleDisabled']: t => this.state.shift ? this.addDays(this.startDate, datasetDayOffsets[t[0].datasetIndex] + t[0].index).toDateString().substring(4, 10) : undefined,
+          }
+        },
+        maintainAspectRatio: false,
         scales: {
           yAxes: [{
             type: this.state.log ? 'logarithmic' : 'linear',
@@ -177,15 +249,18 @@ export class AppComponent implements OnInit {
   private plotNew(prop: string): void {
     const datasets = this.state.selectedCountries.map(c => {
       const getData = pipe(
-        () => this.data[c].map(p => p[prop]),
+        () => this.data[c].filter(p => new Date(p.date) >= this.startDate && new Date(p.date) <= this.endDate).map(p => p[prop]),
         d => this.arrayMul(d, this.state.normalize ? this.state.normalizePopulation / this.pop[c] : 1),
         d => this.arrayDifference(d),
         d => this.arrayMovingAverage(d, this.state.average ? this.state.avgSamples : 1),
         d => this.state.shift ? d.slice(d.findIndex(n => n >= this.state.shiftThreshold)) : d,
+        d => this.arrayRound(d),
       );
 
       return this.createDataset(c, getData(null));
     });
+
+    const datasetDayOffsets = datasets.map((d, i) => this.data[this.state.selectedCountries[i]].length - d.data.length);
 
     const labels = this.getLabels(datasets);
 
@@ -199,6 +274,13 @@ export class AppComponent implements OnInit {
         animation: {
           duration: 0,
         },
+        onClick: () => this.updateHiddenCountries(),
+        tooltips: {
+          callbacks: {
+            [this.state.shift ? 'title' : 'titleDisabled']: t => this.state.shift ? this.addDays(this.startDate, datasetDayOffsets[t[0].datasetIndex] + t[0].index).toDateString().substring(4, 10) : undefined,
+          }
+        },
+        maintainAspectRatio: false,
         scales: {
           yAxes: [{
             type: this.state.log ? 'logarithmic' : 'linear',
@@ -216,16 +298,19 @@ export class AppComponent implements OnInit {
   private plotGrowth(prop: string): void {
     const datasets = this.state.selectedCountries.map(c => {
       const getData = pipe(
-        () => this.data[c].map(p => p[prop]),
+        () => this.data[c].filter(p => new Date(p.date) >= this.startDate && new Date(p.date) <= this.endDate).map(p => p[prop]),
         d => this.arrayMul(d, this.state.normalize ? this.state.normalizePopulation / this.pop[c] : 1),
         d => this.arrayDifference(d),
         d => this.arrayMovingAverage(d, this.state.average ? this.state.avgSamples : 1),
         d => this.state.shift ? d.slice(d.findIndex(n => n >= this.state.shiftThreshold)) : d,
         d => this.arrayGrowthFactor(d),
+        d => this.arrayRound(d),
       );
 
       return this.createDataset(c, getData(null));
     });
+
+    const datasetDayOffsets = datasets.map((d, i) => this.data[this.state.selectedCountries[i]].length - d.data.length);
 
     const labels = this.getLabels(datasets);
 
@@ -239,12 +324,19 @@ export class AppComponent implements OnInit {
         animation: {
           duration: 0,
         },
+        onClick: () => this.updateHiddenCountries(),
+        tooltips: {
+          callbacks: {
+            [this.state.shift ? 'title' : 'titleDisabled']: t => this.state.shift ? this.addDays(this.startDate, datasetDayOffsets[t[0].datasetIndex] + t[0].index).toDateString().substring(4, 10) : undefined,
+          }
+        },
+        maintainAspectRatio: false,
         scales: {
           yAxes: [{
             type: 'linear',
             ticks: {
-              max: 2,
-              min: 0.3,
+              max: 1.5,
+              min: 0.5,
             }
           }],
         },
@@ -258,18 +350,34 @@ export class AppComponent implements OnInit {
       borderColor: this.getNiceColor(label),
       data,
       fill: false,
+      pointRadius: 2,
     };
+  }
+
+  private arrayMin<T>(arr: T[], def?: T): T {
+    return arr && arr.length ? arr.reduce((p, c) => p > c ? c : p) : def;
+  }
+
+  private arrayMax<T>(arr: T[], def?: T): T {
+    return arr && arr.length ? arr.reduce((p, c) => p < c ? c : p) : def;
   }
 
   private getLabels(datasets: { data: number[]; }[]): string[] {
     if (this.state.shift) {
-      return Helpers.range([ 1, Math.max(...datasets.map(d => d.data.length)), 1 ]).map(n => 'Day ' + n);
+      return Helpers.range([ 1, Math.max(...datasets.map(d => d.data.length)), 1 ])
+        .map(n => 'Day ' + n);
     } else {
-      const startDate = new Date(this.data[this.state.selectedCountries[0]][0].date).getTime();
-      this.dateLabels = this.data[this.state.selectedCountries[0]].map(p => p.date.replace('2020-', ''));
-      const dayTicks = 60 * 60 * 24 * 1000;
-      return Helpers.range([ 1, Math.max(...datasets.map(d => d.data.length)), 1 ]).map(n => new Date(startDate + (n - 1) * dayTicks).toISOString().substring(5, 10));
+      const r = Helpers.range([ 1, this.daysBetween(this.startDate, this.endDate) + 1, 1 ]);
+      return r.map(n => this.addDays(this.startDate, n - 1).toDateString().substring(4, 10));
     }
+  }
+
+  private addDays(date: Date, days: number): Date {
+    return new Date(date.getTime() + days * 60 * 60 * 24 * 1000);
+  }
+
+  private daysBetween(date1: Date, date2: Date): number {
+    return Math.floor((date2.getTime() - date1.getTime()) / (60 * 60 * 24 * 1000));
   }
 
   private arrayDifference(arr: number[]): number[] {
@@ -284,6 +392,10 @@ export class AppComponent implements OnInit {
       return total;
     });
     return result;
+  }
+
+  private arrayRound(arr: number[]): number[] {
+    return arr.map(a => Math.round(a * 100) / 100);
   }
 
   private arrayMul(arr: number[], mul: number): number[] {
@@ -324,18 +436,18 @@ export class AppComponent implements OnInit {
   }
 
   private getNiceColor(c: string): string {
-    let result = this.state.colors[c];
+    let result = this.colors[c];
     if (!result) {
       let i = this.getHashBucket(c, niceColors.length);
-      if (Object.keys(this.state.colors).length < niceColors.length) {
-        const usedColors = Object.keys(this.state.colors).map(country => this.state.colors[country]);
+      if (Object.keys(this.colors).length < niceColors.length) {
+        const usedColors = Object.keys(this.colors).map(country => this.colors[country]);
         i = 0;
         while (usedColors.indexOf(niceColors[i]) >= 0) {
           i++;
         }
       }
       result = niceColors[i];
-      this.state.colors[c] = result;
+      this.colors[c] = result;
     }
     return result;
   }
