@@ -101,7 +101,7 @@ export class AppComponent implements OnInit {
     }
 
     if (this.state.startFrom === 'date' && this.state.startDate) {
-      arr.push('starting from ' + new Date(this.state.startDate).toDateString());
+      arr.push('starting from ' + new Date(this.state.startDate).toDateString().substring(4, 10));
     } else {
       arr.push('starting at ' + this.state.startValue + ' cases ' + per);
     }
