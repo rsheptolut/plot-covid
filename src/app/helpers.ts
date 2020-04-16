@@ -121,4 +121,9 @@ export class Helpers {
       return '1' + (zeroes > 0 ? '0'.repeat(zeroes) : '') + suffixes[suffixIndex];
     }
   }
+
+  public static getTsDate(date: string): Date {
+    const a = date.split('-');
+    return new Date(parseInt(a[0], 10), parseInt(a[1], 10) - 1, parseInt(a[2], 10), 0, 0, 0, 0);
+  }
 }

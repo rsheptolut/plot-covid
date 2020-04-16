@@ -22,7 +22,7 @@ export class AppComponent implements OnInit {
   private data: { [ key: string ]: DataRow[] };
   public countryOptions: string[];
   public chartTypes = ChartType;
-  public chartTypeOptions = Object.values(ChartType);
+  public chartTypeOptions = Object.keys(ChartType).map(k => this.chartTypes[k]);
   public state: State;
   public currentChart: Chart;
   public pop: { [key: string]: number; };
@@ -106,7 +106,7 @@ export class AppComponent implements OnInit {
       arr.push('starting at ' + this.state.startValue + ' cases ' + per);
     }
 
-    return "Showing: " + arr.join(', ') + ' (click to change settings)';
+    return 'Showing: ' + arr.join(', ') + ' (click to change settings)';
   }
 
   public async normalizeChange(): Promise<void> {
@@ -157,11 +157,11 @@ export class AppComponent implements OnInit {
 
     this.state.avgSamples = Math.max(1, Math.min(28, this.state.avgSamples));
 
-    this.startDate = Helpers.arrayMin(this.state.selectedCountries.map(c => new Date(this.data[c][0].date)));
-    this.endDate = Helpers.arrayMax(this.state.selectedCountries.map(c => new Date(this.data[c][this.data[c].length - 1].date)));
-    
+    this.startDate = Helpers.arrayMin(this.state.selectedCountries.map(c => Helpers.getTsDate(this.data[c][0].date)));
+    this.endDate = Helpers.arrayMax(this.state.selectedCountries.map(c => Helpers.getTsDate(this.data[c][this.data[c].length - 1].date)));
+
     const userStartDate = this.state.startFrom === 'date' && this.state.startDate ? new Date(this.state.startDate) : null;
-    if (userStartDate && userStartDate > this.startDate) { 
+    if (userStartDate && userStartDate > this.startDate) {
       this.startDate = userStartDate;
     }
 
@@ -205,9 +205,10 @@ export class AppComponent implements OnInit {
       return;
     }
 
-    const req1 = fetch(document.baseURI + '/assets/country-by-population.json');
-    const req2 = fetch(document.baseURI + '/assets/country-by-abbreviation.json');
-    const req3 = fetch(document.baseURI + '/assets/countries.json');
+    const baseHref = document.getElementsByTagName('base')[0].href;
+    const req1 = fetch(baseHref + '/assets/country-by-population.json');
+    const req2 = fetch(baseHref + '/assets/country-by-abbreviation.json');
+    const req3 = fetch(baseHref + '/assets/countries.json');
     const countrySNameToPop = await (await req1).json();
     const countrySNameToAbbr = await (await req2).json();
     const countryPNameToAbbr = await (await req3).json();
@@ -219,7 +220,7 @@ export class AppComponent implements OnInit {
   private plotTotal(prop: string): void {
     const datasets = this.state.selectedCountries.map(c => {
       const getData = pipe(
-        () => this.data[c].filter(p => new Date(p.date) >= this.startDate).map(p => p[prop]),
+        () => this.data[c].filter(p => Helpers.getTsDate(p.date) >= this.startDate).map(p => p[prop]),
         d => Helpers.arrayMul(d, this.state.normalize ? this.state.normalizePopulation / this.pop[c] : 1),
         d => Helpers.arrayDifference(d),
         d => Helpers.arrayMovingAverage(d, this.state.average ? this.state.avgSamples : 1),
@@ -237,7 +238,7 @@ export class AppComponent implements OnInit {
   private plotNew(prop: string): void {
     const datasets = this.state.selectedCountries.map(c => {
       const getData = pipe(
-        () => this.data[c].filter(p => new Date(p.date) >= this.startDate && new Date(p.date) <= this.endDate).map(p => p[prop]),
+        () => this.data[c].filter(p => Helpers.getTsDate(p.date) >= this.startDate).map(p => p[prop]),
         d => Helpers.arrayMul(d, this.state.normalize ? this.state.normalizePopulation / this.pop[c] : 1),
         d => Helpers.arrayDifference(d),
         d => Helpers.arrayMovingAverage(d, this.state.average ? this.state.avgSamples : 1),
@@ -254,7 +255,7 @@ export class AppComponent implements OnInit {
   private plotGrowth(prop: string): void {
     const datasets = this.state.selectedCountries.map(c => {
       const getData = pipe(
-        () => this.data[c].filter(p => new Date(p.date) >= this.startDate && new Date(p.date) <= this.endDate).map(p => p[prop]),
+        () => this.data[c].filter(p => Helpers.getTsDate(p.date) >= this.startDate).map(p => p[prop]),
         d => Helpers.arrayMul(d, this.state.normalize ? this.state.normalizePopulation / this.pop[c] : 1),
         d => Helpers.arrayDifference(d),
         d => Helpers.arrayMovingAverage(d, this.state.average ? this.state.avgSamples : 1),
@@ -303,7 +304,7 @@ export class AppComponent implements OnInit {
 
     const labels = this.getLabels(datasets);
     const datasetDayOffsets = datasets.map((d, i) => this.data[this.state.selectedCountries[i]].length - d.data.length);
-    
+
     const config: Chart.ChartConfiguration = {
       type: 'line',
       data: {
@@ -327,7 +328,7 @@ export class AppComponent implements OnInit {
         }
       };
     }
-    
+
     this.currentChart?.destroy();
     this.currentChart = new Chart(this.chart.nativeElement, config);
 
