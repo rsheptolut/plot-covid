@@ -8,8 +8,10 @@ import { ChartType } from './graph-type';
 import { Helpers } from './helpers';
 import { pipe } from 'rxjs';
 import { MediaMatcher } from '@angular/cdk/layout';
-import { Params, Router, ActivatedRoute } from '@angular/router';
+import { Params, Router, ActivatedRoute, NavigationEnd } from '@angular/router';
 import { UrlState } from './url-state';
+
+declare let ga: Function;
 
 @Component({
   selector: 'app-root',
@@ -42,6 +44,13 @@ export class AppComponent implements OnInit {
     this.mobileQuery = media.matchMedia('(max-width: 600px)');
     this.mobileQueryListener = () => changeDetectorRef.detectChanges();
     this.mobileQuery.addListener(this.mobileQueryListener);
+    // subscribe to router events and send page views to Google Analytics
+    this.router.events.subscribe(event => {
+      if (event instanceof NavigationEnd) {
+        ga('set', 'page', event.urlAfterRedirects);
+        ga('send', 'pageview');
+      }
+    });
   }
 
   get samples(): string {
@@ -89,6 +98,10 @@ export class AppComponent implements OnInit {
       arr.push('log scale');
     }
 
+    if (this.mobileQuery.matches) {
+      return arr.join(', ');
+    }
+
     let per = '';
     if (this.state.normalize && this.state.normalizePopulation > 100 && this.state.normalizePopulation < 10000000000) {
       per = 'per ' + this.abbrNumber(Math.pow(10, Math.log10(this.state.normalizePopulation)));
@@ -103,7 +116,7 @@ export class AppComponent implements OnInit {
       arr.push('starting at ' + this.state.shiftThreshold + ' cases ' + per);
     }
 
-    return arr.join(', ') + ' (click to change settings)';
+    return "Showing: " + arr.join(', ') + ' (click to change settings)';
   }
 
   public async normalizeChange(): Promise<void> {
@@ -351,6 +364,7 @@ export class AppComponent implements OnInit {
       data,
       fill: false,
       pointRadius: 2,
+      pointHitRadius: 4,
     };
   }
 

@@ -33,13 +33,13 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
       
-      - name: Build app
+      - name: Build Angular app
         run: |
           cd main
           npm ci
           npm run build
       
-      - name: Commit all changes to repo
+      - name: Commit build artifacts to repo @ gh-pages
         run: |
           \rm -rfv /pages/
           \cp -r main/dist/** pages/
@@ -49,7 +49,7 @@ jobs:
           git add .
           git diff-index --quiet HEAD || git commit -m "Update and build" -a
       
-      - name: Push changes to repo
+      - name: Push changes to repo @ gh-pages
         uses: ad-m/github-push-action@master
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
