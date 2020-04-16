@@ -45,21 +45,35 @@
                     
                     <div class="grower"></div>
                     <mat-form-field class="inline">
-                        <mat-label>As if all countries have this population:</mat-label>
+                        <mat-label>Per this population:</mat-label>
                         <input matInput [(ngModel)]="state.normalizePopulation" (ngModelChange)="settingChange()" type="number" min="1" max="10000000000">
                     </mat-form-field>
                 </div>
-        
-                <div class="row">
-                    <mat-checkbox [(ngModel)]="state.shift" (ngModelChange)="settingChange()">Start each curve at</mat-checkbox>
-                    
-                    <div class="grower"></div>
-                    <mat-form-field class="inline">
-                        <mat-label>{{(state.chartType.endsWith("growth") ? "Number of new events" : "Y value")}}</mat-label>
-                        <input matInput [(ngModel)]="state.shiftThreshold" (ngModelChange)="settingChange()" type="number" min="1" max="10000">
-                    </mat-form-field>
-                    <p></p>
-                </div>
+
+                <mat-radio-group name="startFrom" [(ngModel)]="state.startFrom" (ngModelChange)="settingChange()">
+                    <p>Start each curve at:</p>
+                    <div class="row">
+                        <mat-radio-button name="startFrom" value="2" value="date">Same date</mat-radio-button>
+                        <div class="grower"></div>
+                        <mat-form-field class="inline" (click)="dateChange()">
+                            <mat-label>Start date</mat-label>
+                            <input matInput [matDatepicker]="picker" [(ngModel)]="state.startDate" (ngModelChange)="dateChange()">
+                            <mat-datepicker-toggle matSuffix [for]="picker"></mat-datepicker-toggle>
+                            <mat-datepicker [attr.touchUi]="mobileQuery.matches" #picker></mat-datepicker>
+                        </mat-form-field>
+                    </div>
+            
+                    <div class="row">
+                        <mat-radio-button name="startFrom" value="value">Same Y value</mat-radio-button>
+                        
+                        <div class="grower"></div>
+                        <mat-form-field class="inline" (click)="offsetChange()">
+                            <mat-label>Y value</mat-label>
+                            <input matInput [(ngModel)]="state.startValue" (ngModelChange)="offsetChange()" type="number" min="1" max="10000">
+                        </mat-form-field>
+                        <p></p>
+                    </div>
+                </mat-radio-group>
         
                 <h2>Sources</h2>
                 <p><a href="https://github.com/pomber/covid19">COVID case data</a>{{mainUpdatedStr}}</p>

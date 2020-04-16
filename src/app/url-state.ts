@@ -7,8 +7,9 @@ export class UrlState {
     public chart: string;
     public avg: number;
     public pop: number;
-    public shift: number;
     public log: string;
+    public startDate: string;
+    public startValue: number;
 
     public static fromState(state: State): UrlState {
         const result = new UrlState();
@@ -17,8 +18,9 @@ export class UrlState {
         result.chart = state.chartType || ChartType.NewCases;
         result.avg = state.average && state.avgSamples > 1 ? state.avgSamples : undefined;
         result.pop = state.normalize ? state.normalizePopulation : undefined;
-        result.shift = state.shift ? state.shiftThreshold : undefined;
         result.log = state.log ? '1' : '0';
+        result.startDate = state.startFrom === 'date' && state.startDate ? new Date(state.startDate).toISOString().slice(0, 10) : undefined;
+        result.startValue = !result.startDate ? state.startValue || 1 : undefined;
 
         return result;
     }
@@ -33,8 +35,13 @@ export class UrlState {
             result.avgSamples = result.average ? state.avg : 5;
             result.normalize = state.pop >= 100;
             result.normalizePopulation = result.normalize ? state.pop : 1000000;
-            result.shift = state.shift > 0;
-            result.shiftThreshold = result.shift ? state.shift : 1;
+            if (state.startDate && state.startDate.length === 10) {
+                result.startFrom = 'date';
+                result.startDate = new Date(state.startDate).toISOString();
+            } else {
+                result.startFrom = 'value';
+                result.startValue = state.startValue || 1;
+            }
             result.log = state.log === '1';
         }
 

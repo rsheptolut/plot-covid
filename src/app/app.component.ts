@@ -2,13 +2,11 @@ import { Component, ViewChild, ElementRef, OnInit, ChangeDetectorRef } from '@an
 import Chart from 'chart.js';
 import { DataRow } from './data-row';
 import { State } from './state';
-import hash from 'object-hash';
-import { niceColors } from './colors';
 import { ChartType } from './graph-type';
 import { Helpers } from './helpers';
 import { pipe } from 'rxjs';
 import { MediaMatcher } from '@angular/cdk/layout';
-import { Params, Router, ActivatedRoute, NavigationEnd } from '@angular/router';
+import { Router, ActivatedRoute, NavigationEnd } from '@angular/router';
 import { UrlState } from './url-state';
 
 declare let ga: Function;
@@ -29,11 +27,10 @@ export class AppComponent implements OnInit {
   public currentChart: Chart;
   public pop: { [key: string]: number; };
   public mainUpdatedStr: string;
-  private numberScale = [ 0, 1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000 ];
-  mobileQuery: MediaQueryList;
+  public mobileQuery: MediaQueryList;
   private startDate: Date;
   private endDate: Date;
-  public colors: { [ country: string ]: string } = {};
+  private ignoreRouteChanges = false;
 
   constructor(
     changeDetectorRef: ChangeDetectorRef,
@@ -44,6 +41,7 @@ export class AppComponent implements OnInit {
     this.mobileQuery = media.matchMedia('(max-width: 600px)');
     this.mobileQueryListener = () => changeDetectorRef.detectChanges();
     this.mobileQuery.addListener(this.mobileQueryListener);
+
     // subscribe to router events and send page views to Google Analytics
     this.router.events.subscribe(event => {
       if (event instanceof NavigationEnd) {
@@ -71,21 +69,11 @@ export class AppComponent implements OnInit {
     this.countryOptions = Object.keys(this.data).sort((a, b) => a.localeCompare(b));
 
     this.activatedRoute.queryParams.subscribe(async p => {
-      this.state = UrlState.toState(p as UrlState);
-      await this.settingChange();
+      if (!this.ignoreRouteChanges) {
+        this.state = UrlState.toState(p as UrlState);
+        await this.settingChange();
+      }
     });
-  }
-
-  private updateHiddenCountries(): void {
-    if (this.currentChart) {
-      setTimeout(() => {
-        const newHiddenCountries = this.currentChart.data.datasets.filter((d, i) => this.currentChart.getDatasetMeta(i).hidden).map(d => d.label);
-        if (newHiddenCountries.length !== this.state.hiddenCountries.length || this.state.hiddenCountries.some((h, i) => h !== newHiddenCountries[i])) {
-          this.state.hiddenCountries = newHiddenCountries;
-          this.settingChange();
-        }
-      });
-    }
   }
 
   public getTitle(): string {
@@ -104,7 +92,7 @@ export class AppComponent implements OnInit {
 
     let per = '';
     if (this.state.normalize && this.state.normalizePopulation > 100 && this.state.normalizePopulation < 10000000000) {
-      per = 'per ' + this.abbrNumber(Math.pow(10, Math.log10(this.state.normalizePopulation)));
+      per = 'per ' + Helpers.abbrNumber(Math.pow(10, Math.log10(this.state.normalizePopulation)));
       arr.push(per);
     }
 
@@ -112,8 +100,10 @@ export class AppComponent implements OnInit {
       arr.push('moving avg over ' + this.state.avgSamples + ' days');
     }
 
-    if (this.state.shift && this.state.shiftThreshold > 0) {
-      arr.push('starting at ' + this.state.shiftThreshold + ' cases ' + per);
+    if (this.state.startFrom === 'date' && this.state.startDate) {
+      arr.push('starting from ' + new Date(this.state.startDate).toDateString());
+    } else {
+      arr.push('starting at ' + this.state.startValue + ' cases ' + per);
     }
 
     return "Showing: " + arr.join(', ') + ' (click to change settings)';
@@ -121,19 +111,31 @@ export class AppComponent implements OnInit {
 
   public async normalizeChange(): Promise<void> {
     if (this.state.normalize) {
-      if (this.state.shiftThreshold > 10) {
-        this.state.shiftThreshold /= Math.max(1, Math.round(this.state.normalizePopulation / 10000));
+      if (this.state.startValue > 10) {
+        this.state.startValue /= Math.max(1, Math.round(this.state.normalizePopulation / 10000));
       }
     } else {
-      if (this.state.shiftThreshold < 10) {
-        this.state.shiftThreshold *= Math.min(1000, Math.round(this.state.normalizePopulation / 10000));
+      if (this.state.startValue < 10) {
+        this.state.startValue *= Math.min(1000, Math.round(this.state.normalizePopulation / 10000));
       }
     }
 
     await this.settingChange();
   }
 
+  public async dateChange(): Promise<void> {
+    this.state.startFrom = 'date';
+    await this.settingChange();
+  }
+
+  public async offsetChange(): Promise<void> {
+    this.state.startFrom = 'value';
+    await this.settingChange();
+  }
+
   public async settingChange(): Promise<void> {
+    this.ignoreRouteChanges = true;
+    setTimeout(() => this.ignoreRouteChanges = false, 100);
     const queryParams = UrlState.fromState(this.state);
 
     this.router.navigate(
@@ -152,12 +154,16 @@ export class AppComponent implements OnInit {
     }
 
     this.updateHiddenCountries();
-    this.currentChart?.destroy();
 
     this.state.avgSamples = Math.max(1, Math.min(28, this.state.avgSamples));
 
-    this.startDate = this.arrayMin(this.state.selectedCountries.map(c => new Date(this.data[c][0].date)));
-    this.endDate = this.arrayMax(this.state.selectedCountries.map(c => new Date(this.data[c][this.data[c].length - 1].date)));
+    this.startDate = Helpers.arrayMin(this.state.selectedCountries.map(c => new Date(this.data[c][0].date)));
+    this.endDate = Helpers.arrayMax(this.state.selectedCountries.map(c => new Date(this.data[c][this.data[c].length - 1].date)));
+    
+    const userStartDate = this.state.startFrom === 'date' && this.state.startDate ? new Date(this.state.startDate) : null;
+    if (userStartDate && userStartDate > this.startDate) { 
+      this.startDate = userStartDate;
+    }
 
     if (this.state.normalize) {
       await this.initPopulation();
@@ -192,15 +198,6 @@ export class AppComponent implements OnInit {
         this.plotGrowth('recovered');
         break;
     }
-
-    if (this.state.hiddenCountries && this.state.hiddenCountries.length) {
-      for (let i = 0; i < this.currentChart.data.datasets.length; i++) {
-        const meta = this.currentChart.getDatasetMeta(i);
-        meta.hidden = this.state.hiddenCountries.indexOf(this.currentChart.data.datasets[i].label) >= 0;
-      }
-
-      this.currentChart.update();
-    }
   }
 
   private async initPopulation(): Promise<void> {
@@ -223,153 +220,69 @@ export class AppComponent implements OnInit {
     const datasets = this.state.selectedCountries.map(c => {
       const getData = pipe(
         () => this.data[c].filter(p => new Date(p.date) >= this.startDate).map(p => p[prop]),
-        d => this.arrayMul(d, this.state.normalize ? this.state.normalizePopulation / this.pop[c] : 1),
-        d => this.arrayDifference(d),
-        d => this.arrayMovingAverage(d, this.state.average ? this.state.avgSamples : 1),
-        d => this.state.shift ? d.slice(d.findIndex(n => n >= this.state.shiftThreshold)) : d,
-        d => this.arrayAbsolute(d),
-        d => this.arrayRound(d),
+        d => Helpers.arrayMul(d, this.state.normalize ? this.state.normalizePopulation / this.pop[c] : 1),
+        d => Helpers.arrayDifference(d),
+        d => Helpers.arrayMovingAverage(d, this.state.average ? this.state.avgSamples : 1),
+        d => this.state.startFrom === 'value' ? d.slice(d.findIndex(n => n >= this.state.startValue)) : d,
+        d => Helpers.arrayAbsolute(d),
+        d => Helpers.arrayRound(d),
       );
 
       return this.createDataset(c, getData(null));
     });
 
-    const datasetDayOffsets = datasets.map((d, i) => this.data[this.state.selectedCountries[i]].length - d.data.length);
-
-    const labels = this.getLabels(datasets);
-
-    this.currentChart = new Chart(this.chart.nativeElement, {
-      type: 'line',
-      data: {
-        labels,
-        datasets,
-      },
-      options: {
-        animation: {
-          duration: 0,
-        },
-        onClick: () => this.updateHiddenCountries(),
-        tooltips: {
-          callbacks: {
-            [this.state.shift ? 'title' : 'titleDisabled']: t => this.state.shift ? this.addDays(this.startDate, datasetDayOffsets[t[0].datasetIndex] + t[0].index).toDateString().substring(4, 10) : undefined,
-          }
-        },
-        maintainAspectRatio: false,
-        scales: {
-          yAxes: [{
-            type: this.state.log ? 'logarithmic' : 'linear',
-            ticks: {
-              callback: this.abbrNumber,
-            },
-            afterBuildTicks: () => this.numberScale,
-          }],
-        },
-      },
-    });
+    this.createChart(datasets);
   }
 
   private plotNew(prop: string): void {
     const datasets = this.state.selectedCountries.map(c => {
       const getData = pipe(
         () => this.data[c].filter(p => new Date(p.date) >= this.startDate && new Date(p.date) <= this.endDate).map(p => p[prop]),
-        d => this.arrayMul(d, this.state.normalize ? this.state.normalizePopulation / this.pop[c] : 1),
-        d => this.arrayDifference(d),
-        d => this.arrayMovingAverage(d, this.state.average ? this.state.avgSamples : 1),
-        d => this.state.shift ? d.slice(d.findIndex(n => n >= this.state.shiftThreshold)) : d,
-        d => this.arrayRound(d),
+        d => Helpers.arrayMul(d, this.state.normalize ? this.state.normalizePopulation / this.pop[c] : 1),
+        d => Helpers.arrayDifference(d),
+        d => Helpers.arrayMovingAverage(d, this.state.average ? this.state.avgSamples : 1),
+        d => this.state.startFrom === 'value' ? d.slice(d.findIndex(n => n >= this.state.startValue)) : d,
+        d => Helpers.arrayRound(d),
       );
 
       return this.createDataset(c, getData(null));
     });
 
-    const datasetDayOffsets = datasets.map((d, i) => this.data[this.state.selectedCountries[i]].length - d.data.length);
-
-    const labels = this.getLabels(datasets);
-
-    this.currentChart = new Chart(this.chart.nativeElement, {
-      type: 'line',
-      data: {
-        datasets,
-        labels,
-      },
-      options: {
-        animation: {
-          duration: 0,
-        },
-        onClick: () => this.updateHiddenCountries(),
-        tooltips: {
-          callbacks: {
-            [this.state.shift ? 'title' : 'titleDisabled']: t => this.state.shift ? this.addDays(this.startDate, datasetDayOffsets[t[0].datasetIndex] + t[0].index).toDateString().substring(4, 10) : undefined,
-          }
-        },
-        maintainAspectRatio: false,
-        scales: {
-          yAxes: [{
-            type: this.state.log ? 'logarithmic' : 'linear',
-            ticks: {
-              callback: this.abbrNumber,
-              min: 1,
-            },
-            afterBuildTicks: () => this.numberScale,
-          }],
-        },
-      },
-    });
+    this.createChart(datasets);
   }
 
   private plotGrowth(prop: string): void {
     const datasets = this.state.selectedCountries.map(c => {
       const getData = pipe(
         () => this.data[c].filter(p => new Date(p.date) >= this.startDate && new Date(p.date) <= this.endDate).map(p => p[prop]),
-        d => this.arrayMul(d, this.state.normalize ? this.state.normalizePopulation / this.pop[c] : 1),
-        d => this.arrayDifference(d),
-        d => this.arrayMovingAverage(d, this.state.average ? this.state.avgSamples : 1),
-        d => this.state.shift ? d.slice(d.findIndex(n => n >= this.state.shiftThreshold)) : d,
-        d => this.arrayGrowthFactor(d),
-        d => this.arrayRound(d),
+        d => Helpers.arrayMul(d, this.state.normalize ? this.state.normalizePopulation / this.pop[c] : 1),
+        d => Helpers.arrayDifference(d),
+        d => Helpers.arrayMovingAverage(d, this.state.average ? this.state.avgSamples : 1),
+        d => this.state.startFrom === 'value' ? d.slice(d.findIndex(n => n >= this.state.startValue)) : d,
+        d => Helpers.arrayGrowthFactor(d),
+        d => Helpers.arrayRound(d),
       );
 
       return this.createDataset(c, getData(null));
     });
 
-    const datasetDayOffsets = datasets.map((d, i) => this.data[this.state.selectedCountries[i]].length - d.data.length);
+    const scales = {
+      yAxes: [{
+        type: 'linear',
+        ticks: {
+          max: 1.5,
+          min: 0.5,
+        }
+      }],
+    };
 
-    const labels = this.getLabels(datasets);
-
-    this.currentChart = new Chart(this.chart.nativeElement, {
-      type: 'line',
-      data: {
-        labels,
-        datasets,
-      },
-      options: {
-        animation: {
-          duration: 0,
-        },
-        onClick: () => this.updateHiddenCountries(),
-        tooltips: {
-          callbacks: {
-            [this.state.shift ? 'title' : 'titleDisabled']: t => this.state.shift ? this.addDays(this.startDate, datasetDayOffsets[t[0].datasetIndex] + t[0].index).toDateString().substring(4, 10) : undefined,
-          }
-        },
-        maintainAspectRatio: false,
-        scales: {
-          yAxes: [{
-            type: 'linear',
-            ticks: {
-              max: 1.5,
-              min: 0.5,
-            }
-          }],
-        },
-      },
-    });
+    this.createChart(datasets, scales);
   }
 
-  private createDataset(label: string, data: number[]) {
+  private createDataset(label: string, data: number[]): Chart.ChartDataSets {
     return {
       label,
-      borderColor: this.getNiceColor(label),
+      borderColor: Helpers.getNiceColor(label),
       data,
       fill: false,
       pointRadius: 2,
@@ -377,115 +290,76 @@ export class AppComponent implements OnInit {
     };
   }
 
-  private arrayMin<T>(arr: T[], def?: T): T {
-    return arr && arr.length ? arr.reduce((p, c) => p > c ? c : p) : def;
+  private createChart(datasets: Chart.ChartDataSets[], scales?: Chart.ChartScales | Chart.LinearScale | Chart.LogarithmicScale | Chart.TimeScale) {
+    scales = scales || {
+      yAxes: [{
+        type: this.state.log ? 'logarithmic' : 'linear',
+        ticks: {
+          callback: Helpers.abbrNumber,
+        },
+        afterBuildTicks: () => [ 0, 1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000 ],
+      }],
+    };
+
+    const labels = this.getLabels(datasets);
+    const datasetDayOffsets = datasets.map((d, i) => this.data[this.state.selectedCountries[i]].length - d.data.length);
+    
+    const config: Chart.ChartConfiguration = {
+      type: 'line',
+      data: {
+        labels,
+        datasets,
+      },
+      options: {
+        animation: {
+          duration: 0,
+        },
+        onClick: () => this.updateHiddenCountries(),
+        maintainAspectRatio: false,
+        scales,
+      },
+    };
+
+    if (this.state.startFrom === 'value') {
+      config.options.tooltips = {
+        callbacks: {
+          title: t => Helpers.addDays(this.startDate, datasetDayOffsets[t[0].datasetIndex] + t[0].index).toDateString().substring(4, 10),
+        }
+      };
+    }
+    
+    this.currentChart?.destroy();
+    this.currentChart = new Chart(this.chart.nativeElement, config);
+
+    if (this.state.hiddenCountries && this.state.hiddenCountries.length) {
+      for (let i = 0; i < this.currentChart.data.datasets.length; i++) {
+        const meta = this.currentChart.getDatasetMeta(i);
+        meta.hidden = this.state.hiddenCountries.indexOf(this.currentChart.data.datasets[i].label) >= 0;
+      }
+
+      this.currentChart.update();
+    }
   }
 
-  private arrayMax<T>(arr: T[], def?: T): T {
-    return arr && arr.length ? arr.reduce((p, c) => p < c ? c : p) : def;
-  }
-
-  private getLabels(datasets: { data: number[]; }[]): string[] {
-    if (this.state.shift) {
+  private getLabels(datasets: Chart.ChartDataSets[]): string[] {
+    if (this.state.startFrom === 'value') {
       return Helpers.range([ 1, Math.max(...datasets.map(d => d.data.length)), 1 ])
         .map(n => 'Day ' + n);
     } else {
-      const r = Helpers.range([ 1, this.daysBetween(this.startDate, this.endDate) + 1, 1 ]);
-      return r.map(n => this.addDays(this.startDate, n - 1).toDateString().substring(4, 10));
+      const r = Helpers.range([ 1, Helpers.daysBetween(this.startDate, this.endDate) + 1, 1 ]);
+      return r.map(n => Helpers.addDays(this.startDate, n - 1).toDateString().substring(4, 10));
     }
   }
 
-  private addDays(date: Date, days: number): Date {
-    return new Date(date.getTime() + days * 60 * 60 * 24 * 1000);
-  }
-
-  private daysBetween(date1: Date, date2: Date): number {
-    return Math.floor((date2.getTime() - date1.getTime()) / (60 * 60 * 24 * 1000));
-  }
-
-  private arrayDifference(arr: number[]): number[] {
-    const result = arr.map((p, i, a) => p - (i ? a[i - 1] : 0));
-    return result;
-  }
-
-  private arrayAbsolute(arr: number[]): number[] {
-    let total = 0;
-    const result = arr.map(p => {
-      total += p;
-      return total;
-    });
-    return result;
-  }
-
-  private arrayRound(arr: number[]): number[] {
-    return arr.map(a => Math.round(a * 100) / 100);
-  }
-
-  private arrayMul(arr: number[], mul: number): number[] {
-    const result = arr.map(p => p * mul);
-    return result;
-  }
-
-  private arrayMovingAverage(arr: number[], samples: number): number[] {
-    if (samples <= 1) {
-      return arr;
-    }
-
-    let accum = 0;
-    const r: number[] = new Array(arr.length);
-    for (let i = 0; i < r.length; i++) {
-      if (i >= samples) {
-        accum -= arr[i - samples];
-      }
-      accum += arr[i];
-      r[i] = accum / Math.min(samples, i + 1);
-    }
-    return r;
-  }
-
-  private arrayGrowthFactor(arr: number[]): number[] {
-    const r: number[] = new Array(arr.length);
-    for (let i = 1; i < r.length; i++) {
-      if (arr[i] === 0) {
-        r[i] = 1;
-      } else if (arr[i - 1] === 0) {
-        r[i] = 1;
-      } else {
-        r[i] = arr[i] / arr[i - 1];
-      }
-    }
-    r[0] = r[1];
-    return r;
-  }
-
-  private getNiceColor(c: string): string {
-    let result = this.colors[c];
-    if (!result) {
-      let i = this.getHashBucket(c, niceColors.length);
-      if (Object.keys(this.colors).length < niceColors.length) {
-        const usedColors = Object.keys(this.colors).map(country => this.colors[country]);
-        i = 0;
-        while (usedColors.indexOf(niceColors[i]) >= 0) {
-          i++;
+  private updateHiddenCountries(): void {
+    if (this.currentChart) {
+      setTimeout(() => {
+        const newHiddenCountries = this.currentChart.data.datasets.filter((d, i) => this.currentChart.getDatasetMeta(i).hidden).map(d => d.label);
+        if (newHiddenCountries.length !== this.state.hiddenCountries.length || this.state.hiddenCountries.some((h, i) => h !== newHiddenCountries[i])) {
+          this.state.hiddenCountries = newHiddenCountries;
+          this.settingChange();
         }
-      }
-      result = niceColors[i];
-      this.colors[c] = result;
-    }
-    return result;
-  }
-
-  private getHashBucket(v: any, numberOfBuckets: number): number {
-    return parseInt((hash(v) as string).slice(0, 6), 16) % numberOfBuckets;
-  }
-
-  private abbrNumber(label: number): string {
-    let zeroes = Math.log10(label);
-    if (zeroes % 1 === 0) {
-      const suffixes = [ '', 'K', 'M', 'B', 'T' ];
-      const suffixIndex = Math.floor(zeroes / 3);
-      zeroes = zeroes % 3;
-      return '1' + (zeroes > 0 ? '0'.repeat(zeroes) : '') + suffixes[suffixIndex];
+      });
     }
   }
 }

@@ -9,8 +9,9 @@ export class State {
         public avgSamples: number = 5,
         public normalize: boolean = true,
         public normalizePopulation: number = 1000000,
-        public shift: boolean = true,
-        public shiftThreshold: number = 1,
+        public startFrom: string = 'value',
+        public startDate: string = new Date(2020, 1, 21, 0, 0, 0, 0).toISOString(),
+        public startValue: number = 1,
         public log: boolean = true,
     ) {
     }
