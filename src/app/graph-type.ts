@@ -5,4 +5,7 @@ export enum ChartType {
     TotalDeaths = 'Total deaths',
     NewDeaths = 'New deaths',
     DeathGrowth = 'Death growth',
+    TotalRecoveries = 'Total recoveries',
+    NewRecoveries = 'New recoveries',
+    RecoveryGrowth = 'Recovery growth',
 }

@@ -182,6 +182,15 @@ export class AppComponent implements OnInit {
       case ChartType.DeathGrowth:
         this.plotGrowth('deaths');
         break;
+      case ChartType.TotalRecoveries:
+        this.plotTotal('recovered');
+        break;
+      case ChartType.NewRecoveries:
+        this.plotNew('recovered');
+        break;
+      case ChartType.RecoveryGrowth:
+        this.plotGrowth('recovered');
+        break;
     }
 
     if (this.state.hiddenCountries && this.state.hiddenCountries.length) {
