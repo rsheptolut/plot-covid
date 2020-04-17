@@ -113,6 +113,9 @@ export class Helpers {
   }
 
   public static abbrNumber(label: number): string {
+    if (!label) {
+      return '0';
+    }
     let zeroes = Math.log10(label);
     if (zeroes % 1 === 0) {
       const suffixes = [ '', 'K', 'M', 'B', 'T' ];

@@ -19,10 +19,16 @@
 .chart {
     position: relative;
     width: calc(100vw - 1rem);
-    height: calc(100vh - 9rem);
+    height: calc(100vh - 10rem);
     margin: 0 0 1rem 0;
     overflow: hidden;
     flex-shrink: 0;
+}
+
+@media screen and (orientation:landscape) {
+    .chart {
+        height: calc(100vh - 8rem);
+    }
 }
 
 .inline {
@@ -74,3 +80,6 @@ canvas {
     -ms-user-select: none;
 }
 
+.portrait-notice {
+    text-align: center;
+}

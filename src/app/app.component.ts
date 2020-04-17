@@ -18,6 +18,7 @@ declare let ga: Function;
 })
 export class AppComponent implements OnInit {
   private mobileQueryListener: () => void;
+  private portraitQueryListener: () => void;
   @ViewChild('chart', { static: true }) chart: ElementRef;
   private data: { [ key: string ]: DataRow[] };
   public countryOptions: string[];
@@ -28,6 +29,7 @@ export class AppComponent implements OnInit {
   public pop: { [key: string]: number; };
   public mainUpdatedStr: string;
   public mobileQuery: MediaQueryList;
+  public portraitQuery: MediaQueryList;
   private startDate: Date;
   private endDate: Date;
   private ignoreRouteChanges = false;
@@ -41,6 +43,9 @@ export class AppComponent implements OnInit {
     this.mobileQuery = media.matchMedia('(max-width: 600px)');
     this.mobileQueryListener = () => changeDetectorRef.detectChanges();
     this.mobileQuery.addListener(this.mobileQueryListener);
+    this.portraitQuery = media.matchMedia('(orientation: portrait)');
+    this.portraitQueryListener = () => changeDetectorRef.detectChanges();
+    this.portraitQuery.addListener(this.portraitQueryListener);
 
     // subscribe to router events and send page views to Google Analytics
     this.router.events.subscribe(event => {
@@ -71,6 +76,8 @@ export class AppComponent implements OnInit {
     this.activatedRoute.queryParams.subscribe(async p => {
       if (!this.ignoreRouteChanges) {
         this.state = UrlState.toState(p as UrlState);
+        this.state.selectedCountries = this.state.selectedCountries.filter(c => this.data[c]);
+        this.state.hiddenCountries = this.state.hiddenCountries.filter(c => this.data[c]);
         await this.settingChange();
       }
     });
@@ -296,6 +303,7 @@ export class AppComponent implements OnInit {
       yAxes: [{
         type: this.state.log ? 'logarithmic' : 'linear',
         ticks: {
+          min: 0,
           callback: Helpers.abbrNumber,
         },
         afterBuildTicks: () => [ 0, 1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 100000000, 1000000000 ],

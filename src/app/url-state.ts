@@ -31,6 +31,9 @@ export class UrlState {
             result.selectedCountries = state.countries ? state.countries.split(',') : [ 'US' ];
             result.hiddenCountries = state.hide ? state.hide.split(',') : [];
             result.chartType = state.chart || ChartType.NewCases;
+            if (Object.keys(ChartType).map(k => ChartType[k]).indexOf(result.chartType) < 0) {
+                result.chartType = ChartType.NewCases;
+            }
             result.average = state.avg > 1;
             result.avgSamples = result.average ? state.avg : 5;
             result.normalize = state.pop >= 100;
@@ -40,9 +43,9 @@ export class UrlState {
                 result.startDate = new Date(state.startDate).toISOString();
             } else {
                 result.startFrom = 'value';
-                result.startValue = state.startValue || 1;
+                result.startValue = state.startValue || (result.normalize ? 1 : 100);
             }
-            result.log = state.log === '1';
+            result.log = !(state.log === '0');
         }
 
         return result;
