@@ -8,6 +8,7 @@ import { pipe } from 'rxjs';
 import { MediaMatcher } from '@angular/cdk/layout';
 import { Router, ActivatedRoute, NavigationEnd } from '@angular/router';
 import { UrlState } from './url-state';
+import copy from 'clipboard-copy';
 
 declare let ga: Function;
 
@@ -34,6 +35,7 @@ export class AppComponent implements OnInit {
   private endDate: Date;
   private ignoreRouteChanges = false;
   private worldCountry = '(world)';
+  public copiedAnimation = false;
 
   constructor(
     changeDetectorRef: ChangeDetectorRef,
@@ -155,6 +157,20 @@ export class AppComponent implements OnInit {
       });
 
     this.replot();
+  }
+
+  public async copyLink(): Promise<void> {
+    const n = navigator as any;
+    if (n.share) {
+      await n.share({
+        title: 'WebShare API Demo',
+        url: location.href
+      });
+    } else {
+      await copy(location.href);
+      this.copiedAnimation = true;
+      setTimeout(() => this.copiedAnimation = false, 2000);
+    }
   }
 
   public async replot(): Promise<void> {

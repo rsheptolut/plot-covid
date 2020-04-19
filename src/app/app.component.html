@@ -1,8 +1,11 @@
 <div class="container" [class.is-mobile]="mobileQuery.matches">
-    <mat-toolbar color="primary" class="toolbar" (click)="snav.toggle()">
-        <button mat-icon-button><mat-icon>settings</mat-icon></button>
-        <h1 class="app-name">Plotting COVID-19</h1>
-        <span class="page-title">{{getTitle()}}</span>
+    <mat-toolbar color="primary" class="toolbar">
+        <button mat-icon-button (click)="snav.toggle()"><mat-icon>settings</mat-icon></button>
+        <h1 class="app-name" (click)="snav.toggle()">Plotting COVID-19</h1>
+        <span class="page-title" (click)="snav.toggle()">{{mobileQuery.matches && copiedAnimation ? "Url copied!" : getTitle()}}</span>
+        <div class="grower"></div>
+        <p class="msg" *ngIf="!mobileQuery.matches" [class.msg--visible]="copiedAnimation">Url copied!</p>
+        <button mat-icon-button (click)="copyLink()" class="non-shrinker"><mat-icon>share</mat-icon></button>
     </mat-toolbar>
   
     <mat-sidenav-container class="example-sidenav-container"
@@ -79,6 +82,7 @@
                 <h2>Sources</h2>
                 <p><a href="https://github.com/pomber/covid19">COVID case data</a>{{mainUpdatedStr}}</p>
                 <p><a href="https://github.com/samayo/country-json">Population data</a></p>
+                <p><a href="https://github.com/rsheptolut/plot-covid">Source code for this app</a></p>
             </div>
         </mat-sidenav>
     

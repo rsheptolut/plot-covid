@@ -12,6 +12,23 @@
     align-items: baseline;
 }
 
+.msg {
+    font-size: 1rem;
+    margin: 0;
+    transition: opacity 2s;
+    opacity: 0;
+    flex-shrink: 999;
+    min-width: 0;
+    text-align: right;
+    flex-basis: 0;
+    flex-grow: 999;
+
+    &--visible {
+        transition: opacity 0s;
+        opacity: 1;
+    }
+}
+
 .grower {
     flex-grow: 999;
 }
@@ -54,12 +71,16 @@
   
 .app-name {
     margin: 0 16px 0 8px;
+    font-size: 1.1rem;
     cursor: pointer;
 }
 
 .page-title {
     font-size: 1rem;
+    flex-shrink: 999;
+    overflow-x: hidden;
     cursor: pointer;
+    text-overflow: ellipsis;
 }
   
 .example-sidenav-container {
