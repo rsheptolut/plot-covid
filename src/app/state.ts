@@ -2,7 +2,7 @@ import { ChartType } from './graph-type';
 
 export class State {
     constructor(
-        public selectedCountries: string[] = [ 'US', 'Australia', 'Canada', 'United Kingdom' ],
+        public selectedCountries: string[] = [ '(world)', 'US', 'Australia', 'Singapore' ],
         public hiddenCountries: string[] = [],
         public chartType: string = ChartType.NewCases,
         public average: boolean = true,

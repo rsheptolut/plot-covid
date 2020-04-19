@@ -33,6 +33,7 @@ export class AppComponent implements OnInit {
   private startDate: Date;
   private endDate: Date;
   private ignoreRouteChanges = false;
+  private worldCountry = '(world)';
 
   constructor(
     changeDetectorRef: ChangeDetectorRef,
@@ -71,6 +72,7 @@ export class AppComponent implements OnInit {
       this.mainUpdatedStr = ' (updated ' + new Date(date).toLocaleDateString() + ')';
     }
     this.data = await response.json();
+    this.data[this.worldCountry] = [];
     this.countryOptions = Object.keys(this.data).sort((a, b) => a.localeCompare(b));
 
     this.activatedRoute.queryParams.subscribe(async p => {
@@ -164,6 +166,10 @@ export class AppComponent implements OnInit {
 
     this.state.avgSamples = Math.max(1, Math.min(28, this.state.avgSamples));
 
+    if (this.state.selectedCountries.indexOf(this.worldCountry) >= 0 && !this.data[this.worldCountry].length) {
+      this.sumWorldData();
+    }
+
     this.startDate = Helpers.arrayMin(this.state.selectedCountries.map(c => Helpers.getTsDate(this.data[c][0].date)));
     this.endDate = Helpers.arrayMax(this.state.selectedCountries.map(c => Helpers.getTsDate(this.data[c][this.data[c].length - 1].date)));
 
@@ -222,6 +228,14 @@ export class AppComponent implements OnInit {
     const snameToPopDict = Helpers.toDictionary(countrySNameToPop, c => c['country'] as string, c => parseInt(c['population'], 10));
     const abbrToSnameDict = Helpers.toDictionary(countrySNameToAbbr, c => c['abbreviation'] as string, c => c['country'] as string);
     this.pop = Helpers.toDictionary(Object.keys(countryPNameToAbbr), c => c, c => snameToPopDict[abbrToSnameDict[countryPNameToAbbr[c]['code']]]);
+
+    const noPop = Object.keys(this.data).filter(c => !this.pop[c]);
+    console.log('Countries without population data available: ', noPop.join(', '));
+    for (const c of noPop) {
+      this.pop[c] = 1000000; // Put their population to 1000000 so that at least with default settings it seems like per 1M numbers and absolute numbers are the same
+    }
+
+    this.pop[this.worldCountry] = Object.keys(this.data).map(c => this.pop[c]).reduce((p, c) => p + c);
   }
 
   private plotTotal(prop: string): void {
@@ -370,5 +384,38 @@ export class AppComponent implements OnInit {
         }
       });
     }
+  }
+
+  private sumWorldData(): void {
+    const result: DataRow[] = [];
+    const countryData = Object.keys(this.data).map(k => this.data[k]).filter(d => d?.length);
+    const startDate = Helpers.arrayMin(countryData.map(c => Helpers.getTsDate(c[0].date)));
+    const endDate = Helpers.arrayMax(countryData.map(c => Helpers.getTsDate(c[c.length - 1].date)));
+
+    let currentDate = startDate;
+    const ia = new Array(countryData.length);
+    while (currentDate <= endDate) {
+      const currentDateStr = Helpers.asTsDate(currentDate);
+      let confirmed = 0;
+      let deaths = 0;
+      let recovered = 0;
+
+      for (let ci = 0; ci < countryData.length; ci++) {
+        const d = countryData[ci];
+        const r = d[ia[ci] || 0];
+
+        if (r.date === currentDateStr) {
+          confirmed += r.confirmed;
+          deaths += r.deaths;
+          recovered += r.recovered;
+          ia[ci] = (ia[ci] || 0) + 1;
+        }
+      }
+
+      result.push(new DataRow(currentDateStr, confirmed, deaths, recovered));
+      currentDate = Helpers.addDays(currentDate, 1);
+    }
+
+    this.data[this.worldCountry] = result;
   }
 }

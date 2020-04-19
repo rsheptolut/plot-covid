@@ -129,4 +129,8 @@ export class Helpers {
     const a = date.split('-');
     return new Date(parseInt(a[0], 10), parseInt(a[1], 10) - 1, parseInt(a[2], 10), 0, 0, 0, 0);
   }
+
+  public static asTsDate(date: Date): string {
+    return date.getFullYear() + '-' + (date.getMonth() + 1) + '-' + date.getDate();
+  }
 }
