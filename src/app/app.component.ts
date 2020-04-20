@@ -32,6 +32,7 @@ export class AppComponent implements OnInit {
   public mobileQuery: MediaQueryList;
   public portraitQuery: MediaQueryList;
   private startDate: Date;
+  private startDateMinusOne: Date;
   private endDate: Date;
   private ignoreRouteChanges = false;
   private worldCountry = '(world)';
@@ -186,13 +187,14 @@ export class AppComponent implements OnInit {
       this.sumWorldData();
     }
 
-    this.startDate = Helpers.arrayMin(this.state.selectedCountries.map(c => Helpers.getTsDate(this.data[c][0].date)));
+    this.startDate = Helpers.addDays(Helpers.arrayMin(this.state.selectedCountries.map(c => Helpers.getTsDate(this.data[c][0].date))), 1);
     this.endDate = Helpers.arrayMax(this.state.selectedCountries.map(c => Helpers.getTsDate(this.data[c][this.data[c].length - 1].date)));
 
     const userStartDate = this.state.startFrom === 'date' && this.state.startDate ? new Date(this.state.startDate) : null;
     if (userStartDate && userStartDate > this.startDate) {
       this.startDate = userStartDate;
     }
+    this.startDateMinusOne = Helpers.addDays(this.startDate, -1);
 
     if (this.state.normalize) {
       await this.initPopulation();
@@ -257,9 +259,9 @@ export class AppComponent implements OnInit {
   private plotTotal(prop: string): void {
     const datasets = this.state.selectedCountries.map(c => {
       const getData = pipe(
-        () => this.data[c].filter(p => Helpers.getTsDate(p.date) >= this.startDate).map(p => p[prop]),
+        () => this.data[c].filter(p => Helpers.getTsDate(p.date) >= this.startDateMinusOne).map(p => p[prop]),
         d => Helpers.arrayMul(d, this.state.normalize ? this.state.normalizePopulation / this.pop[c] : 1),
-        d => Helpers.arrayDifference(d),
+        d => Helpers.arrayDifference(d, 1),
         d => Helpers.arrayMovingAverage(d, this.state.average ? this.state.avgSamples : 1),
         d => this.state.startFrom === 'value' ? d.slice(d.findIndex(n => n >= this.state.startValue)) : d,
         d => Helpers.arrayAbsolute(d),
@@ -275,9 +277,9 @@ export class AppComponent implements OnInit {
   private plotNew(prop: string): void {
     const datasets = this.state.selectedCountries.map(c => {
       const getData = pipe(
-        () => this.data[c].filter(p => Helpers.getTsDate(p.date) >= this.startDate).map(p => p[prop]),
+        () => this.data[c].filter(p => Helpers.getTsDate(p.date) >= this.startDateMinusOne).map(p => p[prop]),
         d => Helpers.arrayMul(d, this.state.normalize ? this.state.normalizePopulation / this.pop[c] : 1),
-        d => Helpers.arrayDifference(d),
+        d => Helpers.arrayDifference(d, 1),
         d => Helpers.arrayMovingAverage(d, this.state.average ? this.state.avgSamples : 1),
         d => this.state.startFrom === 'value' ? d.slice(d.findIndex(n => n >= this.state.startValue)) : d,
         d => Helpers.arrayRound(d),
@@ -292,9 +294,9 @@ export class AppComponent implements OnInit {
   private plotGrowth(prop: string): void {
     const datasets = this.state.selectedCountries.map(c => {
       const getData = pipe(
-        () => this.data[c].filter(p => Helpers.getTsDate(p.date) >= this.startDate).map(p => p[prop]),
+        () => this.data[c].filter(p => Helpers.getTsDate(p.date) >= this.startDateMinusOne).map(p => p[prop]),
         d => Helpers.arrayMul(d, this.state.normalize ? this.state.normalizePopulation / this.pop[c] : 1),
-        d => Helpers.arrayDifference(d),
+        d => Helpers.arrayDifference(d, 1),
         d => Helpers.arrayMovingAverage(d, this.state.average ? this.state.avgSamples : 1),
         d => this.state.startFrom === 'value' ? d.slice(d.findIndex(n => n >= this.state.startValue)) : d,
         d => Helpers.arrayGrowthFactor(d),
@@ -341,7 +343,7 @@ export class AppComponent implements OnInit {
     };
 
     const labels = this.getLabels(datasets);
-    const datasetDayOffsets = datasets.map((d, i) => this.data[this.state.selectedCountries[i]].length - d.data.length);
+    const datasetDayOffsets = datasets.map((d, i) => this.data[this.state.selectedCountries[i]].length - d.data.length - 1);
 
     const config: Chart.ChartConfiguration = {
       type: 'line',

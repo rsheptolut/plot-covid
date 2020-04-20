@@ -20,9 +20,9 @@ export class Helpers {
     return result;
   }
 
-  public static arrayDifference(arr: number[]): number[] {
+  public static arrayDifference(arr: number[], disregardDays: number): number[] {
     const result = arr.map((p, i, a) => p - (i ? a[i - 1] : 0));
-    return result;
+    return result.slice(1);
   }
 
   public static arrayAbsolute(arr: number[]): number[] {
