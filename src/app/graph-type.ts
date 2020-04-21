@@ -1,4 +1,5 @@
 export enum ChartType {
+    ActiveCases = 'Active cases',
     TotalCases = 'Total cases',
     NewCases = 'New cases',
     CasesGrowth = 'Case growth',

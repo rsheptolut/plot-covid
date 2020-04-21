@@ -228,6 +228,9 @@ export class AppComponent implements OnInit {
       case ChartType.RecoveryGrowth:
         this.plotGrowth('recovered');
         break;
+      case ChartType.ActiveCases:
+        this.plotActive();
+        break;
     }
   }
 
@@ -317,6 +320,22 @@ export class AppComponent implements OnInit {
     };
 
     this.createChart(datasets, scales);
+  }
+
+  private plotActive(): void {
+    const datasets = this.state.selectedCountries.map(c => {
+      const getData = pipe(
+        () => this.data[c].filter(p => Helpers.getTsDate(p.date) >= this.startDate).map(p => p.confirmed - p.deaths - p.recovered),
+        d => Helpers.arrayMul(d, this.state.normalize ? this.state.normalizePopulation / this.pop[c] : 1),
+        d => Helpers.arrayMovingAverage(d, this.state.average ? this.state.avgSamples : 1),
+        d => this.state.startFrom === 'value' ? d.slice(d.findIndex(n => n >= this.state.startValue)) : d,
+        d => Helpers.arrayRound(d),
+      );
+
+      return this.createDataset(c, getData(null));
+    });
+
+    this.createChart(datasets);
   }
 
   private createDataset(label: string, data: number[]): Chart.ChartDataSets {
