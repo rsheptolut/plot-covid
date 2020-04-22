@@ -15,4 +15,4 @@ Settings available:
 - Correcting for population,
 - Log / linear scale,
 - Moving average,
-- Starting all curves from same value of cases OR from same date .
+- Starting all curves from same value of cases OR from same date.
