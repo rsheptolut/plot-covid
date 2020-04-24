@@ -9,6 +9,9 @@ import { MediaMatcher } from '@angular/cdk/layout';
 import { Router, ActivatedRoute, NavigationEnd } from '@angular/router';
 import { UrlState } from './url-state';
 import copy from 'clipboard-copy';
+import Papa from 'papaparse';
+import { CsvRow } from './csv-row';
+import { SelectOption } from './select-option';
 
 declare let ga: Function;
 
@@ -28,6 +31,7 @@ export class AppComponent implements OnInit {
   public state: State;
   public currentChart: Chart;
   public pop: { [key: string]: number; };
+  public isoCodeToHopkinsCountry: { [key: string]: string };
   public mainUpdatedStr: string;
   public mobileQuery: MediaQueryList;
   public portraitQuery: MediaQueryList;
@@ -37,6 +41,10 @@ export class AppComponent implements OnInit {
   private ignoreRouteChanges = false;
   private worldCountry = '(world)';
   public copiedAnimation = false;
+  public datasetOptions = [
+    new SelectOption('ECDC', 'ECDC (European Centre for Disease Prevention)'),
+    new SelectOption('JHU', 'JHU (Johns Hopkins University)'),
+  ];
 
   constructor(
     changeDetectorRef: ChangeDetectorRef,
@@ -68,21 +76,48 @@ export class AppComponent implements OnInit {
     this.state.avgSamples = parseInt(value, 10);
   }
 
-  public async ngOnInit(): Promise<void> {
+  private async loadJHU(): Promise<void> {
     const response = await fetch('https://pomber.github.io/covid19/timeseries.json');
-    const date = response.headers.get('last-modified') || response.headers.get('Date');
+    this.updateDate(response);
+    this.data = await response.json();
+  }
+
+  private async loadECDC(): Promise<void> {
+    const baseHref = document.getElementsByTagName('base')[0].href;
+    const response = await fetch('https://covid.ourworldindata.org/data/owid-covid-data.csv');
+    // this.updateDate(response);
+    const csvText = await response.text();
+    const config: Papa.ParseConfig = {
+      header: true,
+    };
+    const parsed = Papa.parse(csvText, config);
+    const parsedData = parsed.data as CsvRow[];
+    this.data = Helpers.groupBy(parsedData,
+      g => this.isoCodeToHopkinsCountry[g.iso_code] || g.location,
+      g => g.map(r => new DataRow(r.date, parseInt(r.total_cases, 10), parseInt(r.total_deaths, 10), 0)).sort((a, b) => a.date.localeCompare(b.date)));
+    delete this.data['undefined'];
+  }
+
+  private updateDate(response: Response): void {
+    const date = response.headers.get('last-modified');
     if (date) {
       this.mainUpdatedStr = ' (updated ' + new Date(date).toLocaleDateString() + ')';
     }
-    this.data = await response.json();
-    this.data[this.worldCountry] = [];
-    this.countryOptions = Object.keys(this.data).sort((a, b) => a.localeCompare(b));
+  }
+
+  public async ngOnInit(): Promise<void> {
+    await this.initPopulation();
+    await this.initData();
+    this.finishInitPopulation();
 
     this.activatedRoute.queryParams.subscribe(async p => {
       if (!this.ignoreRouteChanges) {
         this.state = UrlState.toState(p as UrlState);
         this.state.selectedCountries = this.state.selectedCountries.filter(c => this.data[c]);
         this.state.hiddenCountries = this.state.hiddenCountries.filter(c => this.data[c]);
+        if (this.chartTypeOptions.indexOf(this.state.chartType) < 0) {
+          this.state.chartType = ChartType.NewCases;
+        }
         await this.settingChange();
       }
     });
@@ -160,6 +195,12 @@ export class AppComponent implements OnInit {
     this.replot();
   }
 
+  public async datasetChange(): Promise<void> {
+    await this.settingChange();
+    await this.initData();
+    await this.replot();
+  }
+
   public async copyLink(): Promise<void> {
     const n = navigator as any;
     if (n.share) {
@@ -190,15 +231,11 @@ export class AppComponent implements OnInit {
     this.startDate = Helpers.addDays(Helpers.arrayMin(this.state.selectedCountries.map(c => Helpers.getTsDate(this.data[c][0].date))), 1);
     this.endDate = Helpers.arrayMax(this.state.selectedCountries.map(c => Helpers.getTsDate(this.data[c][this.data[c].length - 1].date)));
 
-    const userStartDate = this.state.startFrom === 'date' && this.state.startDate ? new Date(this.state.startDate) : null;
+    const userStartDate = this.state.startFrom === 'date' && this.state.startDate ? Helpers.getTsDate(Helpers.asTsDate(new Date(this.state.startDate))) : null;
     if (userStartDate && userStartDate > this.startDate) {
       this.startDate = userStartDate;
     }
     this.startDateMinusOne = Helpers.addDays(this.startDate, -1);
-
-    if (this.state.normalize) {
-      await this.initPopulation();
-    }
 
     switch (this.state.chartType) {
       case ChartType.TotalCases:
@@ -234,6 +271,18 @@ export class AppComponent implements OnInit {
     }
   }
 
+  private async initData(): Promise<void> {
+    if (this.activatedRoute.snapshot.queryParams['dataset'] === 'JHU') {
+      await this.loadJHU();
+    } else {
+      this.chartTypeOptions = this.chartTypeOptions.filter(o => [ChartType.ActiveCases, ChartType.TotalRecoveries, ChartType.NewRecoveries, ChartType.RecoveryGrowth].indexOf(o) < 0);
+      await this.loadECDC();
+    }
+
+    this.data[this.worldCountry] = [];
+    this.countryOptions = Object.keys(this.data).sort((a, b) => a.localeCompare(b));
+  }
+
   private async initPopulation(): Promise<void> {
     if (this.pop) {
       return;
@@ -243,13 +292,17 @@ export class AppComponent implements OnInit {
     const req1 = fetch(baseHref + '/assets/country-by-population.json');
     const req2 = fetch(baseHref + '/assets/country-by-abbreviation.json');
     const req3 = fetch(baseHref + '/assets/countries.json');
+    const req4 = fetch(baseHref + '/assets/c3toJname.json');
     const countrySNameToPop = await (await req1).json();
     const countrySNameToAbbr = await (await req2).json();
-    const countryPNameToAbbr = await (await req3).json();
+    const hopkinsCountryNameToAbbr = await (await req3).json();
+    this.isoCodeToHopkinsCountry = await (await req4).json();
     const snameToPopDict = Helpers.toDictionary(countrySNameToPop, c => c['country'] as string, c => parseInt(c['population'], 10));
     const abbrToSnameDict = Helpers.toDictionary(countrySNameToAbbr, c => c['abbreviation'] as string, c => c['country'] as string);
-    this.pop = Helpers.toDictionary(Object.keys(countryPNameToAbbr), c => c, c => snameToPopDict[abbrToSnameDict[countryPNameToAbbr[c]['code']]]);
+    this.pop = Helpers.toDictionary(Object.keys(hopkinsCountryNameToAbbr), c => c, c => snameToPopDict[abbrToSnameDict[hopkinsCountryNameToAbbr[c]['code']]]);
+  }
 
+  private finishInitPopulation(): void {
     const noPop = Object.keys(this.data).filter(c => !this.pop[c]);
     console.log('Countries without population data available: ', noPop.join(', '));
     for (const c of noPop) {
@@ -432,24 +485,34 @@ export class AppComponent implements OnInit {
     let currentDate = startDate;
     const ia = new Array(countryData.length);
     while (currentDate <= endDate) {
-      const currentDateStr = Helpers.asTsDate(currentDate);
+      const currentDateStr = Helpers.asTsDate(currentDate, this.state.dataset === 'ECDC');
       let confirmed = 0;
       let deaths = 0;
       let recovered = 0;
 
       for (let ci = 0; ci < countryData.length; ci++) {
         const d = countryData[ci];
-        const r = d[ia[ci] || 0];
+        let r = d[ia[ci] || 0];
+        let dontAdvance = false;
+
+        if (!r) {
+          dontAdvance = true;
+          r = d[ia[ci] ? ia[ci] - 1 : 0];
+        }
 
         if (r.date === currentDateStr) {
           confirmed += r.confirmed;
           deaths += r.deaths;
           recovered += r.recovered;
-          ia[ci] = (ia[ci] || 0) + 1;
+
+          if (!dontAdvance) {
+            ia[ci] = (ia[ci] || 0) + 1;
+          }
         }
       }
 
       result.push(new DataRow(currentDateStr, confirmed, deaths, recovered));
+      console.log(currentDateStr, confirmed);
       currentDate = Helpers.addDays(currentDate, 1);
     }
 

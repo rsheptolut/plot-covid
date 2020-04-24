@@ -12,6 +12,27 @@ export class Helpers {
     return result;
   }
 
+  public static groupBy<TItem, T>(items: TItem[], keySelector: (item: TItem) => string, valueSelector: (item: TItem[]) => T[]): { [key: string]: T[] } {
+    const r1: { [key: string]: TItem[] } = {};
+
+    for (const item of items) {
+      const key = keySelector(item);
+      let arr = r1[key];
+      if (!arr) {
+        arr = [];
+        r1[key] = arr;
+      }
+      arr.push(item);
+    }
+
+    const r2: { [key: string]: T[] } = {};
+    for (const k of Object.keys(r1)) {
+      r2[k] = valueSelector(r1[k]);
+    }
+
+    return r2;
+  }
+
   public static range(range: number[]): number[] {
     const result: number[] = [];
     for (let i = range[0]; i <= range[1]; i += range[2]) {
@@ -130,7 +151,17 @@ export class Helpers {
     return new Date(parseInt(a[0], 10), parseInt(a[1], 10) - 1, parseInt(a[2], 10), 0, 0, 0, 0);
   }
 
-  public static asTsDate(date: Date): string {
-    return date.getFullYear() + '-' + (date.getMonth() + 1) + '-' + date.getDate();
+  public static asTsDate(date: Date, padZeroes = false): string {
+    let mo = (date.getMonth() + 1).toString();
+    let da = date.getDate().toString();
+    if (padZeroes) {
+      if (mo.length === 1) {
+        mo = '0' + mo;
+      }
+      if (da.length === 1) {
+        da = '0' + da;
+      }
+    }
+    return date.getFullYear() + '-' + mo + '-' + da;
   }
 }

@@ -16,9 +16,16 @@
                 <h2>Settings</h2>
 
                 <mat-form-field>
+                    <mat-label>Dataset</mat-label>
+                    <mat-select [(ngModel)]="state.dataset" (selectionChange)="datasetChange()">
+                        <mat-option *ngFor="let option of datasetOptions" [value]="option.value">{{option.name}}</mat-option>
+                    </mat-select>
+                </mat-form-field>
+
+                <mat-form-field>
                     <mat-label>Chart type</mat-label>
                     <mat-select [(ngModel)]="state.chartType" (selectionChange)="settingChange()">
-                    <mat-option *ngFor="let option of chartTypeOptions" [value]="option">{{option}}</mat-option>
+                        <mat-option *ngFor="let option of chartTypeOptions" [value]="option">{{option}}</mat-option>
                     </mat-select>
                 </mat-form-field>
                 
@@ -80,7 +87,8 @@
                 </mat-radio-group>
         
                 <h2>Sources</h2>
-                <p><a href="https://github.com/pomber/covid19">COVID case data</a>{{mainUpdatedStr}}</p>
+                <p *ngIf="state.dataset === 'JHU'"><a href="https://github.com/pomber/covid19">COVID case data</a>{{mainUpdatedStr}}</p>
+                <p *ngIf="state.dataset === 'ECDC'"><a href="https://github.com/owid/covid-19-data">COVID case data</a>{{mainUpdatedStr}}</p>
                 <p><a href="https://github.com/samayo/country-json">Population data</a></p>
                 <p><a href="https://github.com/rsheptolut/plot-covid">Source code for this app</a></p>
             </div>

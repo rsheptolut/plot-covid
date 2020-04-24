@@ -6,3 +6,4 @@ export class DataRow {
         public recovered: number,
     ) {}
 }
+
