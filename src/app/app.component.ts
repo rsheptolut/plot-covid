@@ -45,6 +45,7 @@ export class AppComponent implements OnInit {
     new SelectOption('ECDC', 'ECDC (European Centre for Disease Prevention)'),
     new SelectOption('JHU', 'JHU (Johns Hopkins University)'),
   ];
+  public isInitialized = false;
 
   constructor(
     changeDetectorRef: ChangeDetectorRef,
@@ -106,10 +107,6 @@ export class AppComponent implements OnInit {
   }
 
   public async ngOnInit(): Promise<void> {
-    await this.initPopulation();
-    await this.initData();
-    this.finishInitPopulation();
-
     this.activatedRoute.queryParams.subscribe(async p => {
       if (!this.ignoreRouteChanges) {
         if (!Object.keys(p).length) {
@@ -119,6 +116,11 @@ export class AppComponent implements OnInit {
           }
         }
         this.state = UrlState.toState(p as UrlState);
+
+        if (!this.isInitialized) {
+          await this.initialize();
+        }
+
         this.state.selectedCountries = this.state.selectedCountries.filter(c => this.data[c]);
         this.state.hiddenCountries = this.state.hiddenCountries.filter(c => this.data[c]);
         if (this.chartTypeOptions.indexOf(this.state.chartType) < 0) {
@@ -127,6 +129,12 @@ export class AppComponent implements OnInit {
         await this.settingChange();
       }
     });
+  }
+
+  public async initialize(): Promise<void> {
+    await this.initPopulation();
+    await this.initData();
+    this.finishInitPopulation();
   }
 
   public getTitle(): string {
@@ -293,7 +301,7 @@ export class AppComponent implements OnInit {
 
   private async initData(): Promise<void> {
     this.chartTypeOptions = Object.keys(ChartType).map(k => this.chartTypes[k]);
-    if (this.activatedRoute.snapshot.queryParams['dataset'] === 'JHU') {
+    if (this.state.dataset === 'JHU') {
       await this.loadJHU();
     } else {
       this.chartTypeOptions = this.chartTypeOptions.filter(o => [ ChartType.ActiveCases, ChartType.TotalRecoveries, ChartType.NewRecoveries, ChartType.RecoveryGrowth].indexOf(o as ChartType) < 0);
