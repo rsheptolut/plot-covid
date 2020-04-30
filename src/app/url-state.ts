@@ -49,7 +49,7 @@ export class UrlState {
             result.startDate = new Date(state.startDate || Helpers.addDays(new Date(), -31)).toISOString();
         }
 
-        result.dataset = state.dataset || 'ECDC';
+        result.dataset = state.dataset || 'JHU';
         result.log = !(state.log === '0');
 
         return result;

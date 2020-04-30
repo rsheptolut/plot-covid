@@ -27,7 +27,7 @@ export class AppComponent implements OnInit {
   private data: { [ key: string ]: DataRow[] };
   public countryOptions: string[];
   public chartTypes = ChartType;
-  public chartTypeOptions = Object.keys(ChartType).map(k => this.chartTypes[k]);
+  public chartTypeOptions: string[];
   public state: State;
   public currentChart: Chart;
   public pop: { [key: string]: number; };
@@ -112,6 +112,12 @@ export class AppComponent implements OnInit {
 
     this.activatedRoute.queryParams.subscribe(async p => {
       if (!this.ignoreRouteChanges) {
+        if (!Object.keys(p).length) {
+          const paramsStr = localStorage.getItem('params');
+          if (paramsStr) {
+            p = JSON.parse(paramsStr);
+          }
+        }
         this.state = UrlState.toState(p as UrlState);
         this.state.selectedCountries = this.state.selectedCountries.filter(c => this.data[c]);
         this.state.hiddenCountries = this.state.hiddenCountries.filter(c => this.data[c]);
@@ -180,10 +186,21 @@ export class AppComponent implements OnInit {
     await this.settingChange();
   }
 
+  public async clearSettings(): Promise<void> {
+    localStorage.removeItem('params');
+    this.router.navigate(
+      [],
+      {
+        relativeTo: this.activatedRoute,
+        queryParams: {},
+      });
+  }
+
   public async settingChange(): Promise<void> {
     this.ignoreRouteChanges = true;
     setTimeout(() => this.ignoreRouteChanges = false, 100);
     const queryParams = UrlState.fromState(this.state);
+    localStorage.setItem('params', JSON.stringify(queryParams));
 
     this.router.navigate(
       [],
@@ -198,6 +215,9 @@ export class AppComponent implements OnInit {
   public async datasetChange(): Promise<void> {
     await this.settingChange();
     await this.initData();
+    if (this.chartTypeOptions.indexOf(this.state.chartType) < 0) {
+      this.state.chartType = ChartType.NewCases;
+    }
     await this.replot();
   }
 
@@ -272,10 +292,11 @@ export class AppComponent implements OnInit {
   }
 
   private async initData(): Promise<void> {
+    this.chartTypeOptions = Object.keys(ChartType).map(k => this.chartTypes[k]);
     if (this.activatedRoute.snapshot.queryParams['dataset'] === 'JHU') {
       await this.loadJHU();
     } else {
-      this.chartTypeOptions = this.chartTypeOptions.filter(o => [ChartType.ActiveCases, ChartType.TotalRecoveries, ChartType.NewRecoveries, ChartType.RecoveryGrowth].indexOf(o) < 0);
+      this.chartTypeOptions = this.chartTypeOptions.filter(o => [ ChartType.ActiveCases, ChartType.TotalRecoveries, ChartType.NewRecoveries, ChartType.RecoveryGrowth].indexOf(o as ChartType) < 0);
       await this.loadECDC();
     }
 
@@ -366,8 +387,8 @@ export class AppComponent implements OnInit {
       yAxes: [{
         type: 'linear',
         ticks: {
-          max: 1.5,
-          min: 0.5,
+          max: 4,
+          min: -2,
         }
       }],
     };
@@ -512,7 +533,6 @@ export class AppComponent implements OnInit {
       }
 
       result.push(new DataRow(currentDateStr, confirmed, deaths, recovered));
-      console.log(currentDateStr, confirmed);
       currentDate = Helpers.addDays(currentDate, 1);
     }
 

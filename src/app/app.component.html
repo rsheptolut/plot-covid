@@ -13,7 +13,10 @@
         <mat-sidenav #snav [mode]="'over'"
                     [fixedInViewport]="mobileQuery.matches" fixedTopGap="56">
             <div class="settings" *ngIf="state">
-                <h2>Settings</h2>
+                <div class="settings__header">
+                    <h2>Settings</h2>
+                    <button mat-icon-button (click)="clearSettings()"><mat-icon>refresh</mat-icon></button>
+                </div>
 
                 <mat-form-field>
                     <mat-label>Dataset</mat-label>
