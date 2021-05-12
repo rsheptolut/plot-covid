@@ -22,7 +22,7 @@
     "@angular/platform-browser": "~9.0.5",
     "@angular/platform-browser-dynamic": "~9.0.5",
     "@angular/router": "~9.0.5",
-    "chart.js": "2.9.3",
+    "chart.js": "2.9.4",
     "clipboard-copy": "^3.1.0",
     "object-hash": "2.0.3",
     "papaparse": "^5.2.0",
